@@ -1,0 +1,41 @@
+spring:
+  application:
+    name: payment-service
+  data:
+    redis:
+      host: localhost
+      port: 6379
+  datasource:
+    url: jdbc:postgresql://localhost:5432/payment_db
+    username: postgres
+    password: 548
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  kafka:
+    bootstrap-servers: localhost:9092
+  producer:
+    key-serializer: org.apache.kafka.common.serialization.StringSerializer
+    value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+
+server:
+  port:
+    8083
+
+# Razorpay Configuration
+razorpay:
+  key-id: rzp_test_TeG8lRyAnMfaOD
+  key-secret: GOpLtZ3ayN54nR72QfUa0cXV
+  webhook-secret:
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
