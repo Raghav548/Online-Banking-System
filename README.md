@@ -30,6 +30,66 @@ flowchart TD
     PaymentSvc --- DB3[(MySQL)]
 ```
 
+## Transaction Flow
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant GW as API Gateway
+    participant TS as Transaction Service
+    participant AS as Account Service
+    participant K as Kafka
+    participant FS as Fraud Detection Service
+    participant R as Redis
+    participant NS as Notification Service
+
+    C->>GW: POST /transfer (sender, receiver, amount)
+    GW->>TS: Route request (rate-limited)
+    TS->>AS: Validate balance & deduct amount
+    AS-->>TS: Balance deducted (OK)
+    TS->>TS: Save transaction as PROCESSING
+    TS->>K: Publish transaction.initiated
+
+    K->>FS: Consume transaction.initiated
+    FS->>R: Check velocity / avg amount / balance %
+    R-->>FS: Counters & thresholds
+
+    alt Transaction looks clean
+        FS->>K: Publish fraud.check.clean
+        K->>TS: Consume fraud.check.clean
+        TS->>AS: Credit receiver account
+        TS->>TS: Mark transaction COMPLETED
+        TS->>K: Publish transaction.completed
+        K->>NS: Consume transaction.completed
+        NS->>C: Send debit + credit alerts
+    else Suspicious activity detected
+        FS->>K: Publish verification.required
+        K->>TS: Consume verification.required
+        TS->>TS: Mark transaction PENDING_VERIFICATION
+        TS->>NS: Request OTP notification
+        NS->>C: Send OTP (6 digits, 5 min expiry)
+        TS->>R: Store OTP
+
+        C->>GW: POST /verify-otp (code)
+        GW->>TS: Route OTP verification
+
+        alt OTP correct
+            TS->>AS: Credit receiver account
+            TS->>TS: Mark transaction COMPLETED
+            TS->>K: Publish transaction.completed
+            K->>NS: Consume transaction.completed
+            NS->>C: Send debit + credit alerts
+        else OTP wrong or expired
+            TS->>AS: Refund sender (compensating transaction)
+            TS->>AS: Block account
+            TS->>TS: Mark transaction FLAGGED
+            TS->>K: Publish fraud.detected + refund event
+            K->>NS: Consume fraud/refund events
+            NS->>C: Send fraud alert + refund confirmation
+        end
+    end
+```
+
 ## Services
 
 | Service | Responsibility | Port |
